@@ -1,68 +1,58 @@
 <script lang="ts">
-import * as GCodePreview from 'gcode-preview';
-import { onMount } from 'svelte';
+import { GCodePreview } from 'gcode-preview';
+import { onDestroy, onMount } from 'svelte';
 
 export let src;
-export let chunkSize = Infinity;
 
 let canvas;
 let preview;
-let __animationTimer__;
+// identifies the most recent load, so a fetch that resolves late can bail out
+let loadId = 0;
 
 $: {
     load(src);
 }
 
 onMount(() => {
-    window['preview'] = preview = GCodePreview.init({
+    window['preview'] = preview = new GCodePreview({
         canvas,
-        allowDragNDrop: true,
+        droppable: true,
         extrusionColor: 'lime'
     });
 
     load(src);
 });
 
-async function load(src) {
-    preview && loadChuncked(preview, await fetchGcode(src),50);
-}
+onDestroy(() => {
+    preview?.dispose();
+    preview = undefined;
+});
 
-async function fetchGcode(url) {
-    const response = await fetch(url);
+async function load(src) {
+    if (!preview) return;
+
+    const id = ++loadId;
+
+    // state persists across loads, so drop the previous job before streaming a
+    // new one in. clear() also cancels a stream that is still being read.
+    preview.clear();
+
+    const response = await fetch(src);
 
     if (response.status !== 200) {
         throw new Error(`status code: ${response.status}`);
     }
 
-    const file = await response.text();
-    return file.split('\n');
+    // a newer load started while we were fetching; that one owns the preview
+    if (id !== loadId) return;
+
+    // the reader splits chunks on newlines, so it needs text and not the raw
+    // bytes that response.body yields
+    const gcodeStream = response.body.pipeThrough(new TextDecoderStream());
+
+    // the library parses and draws incrementally as the stream arrives
+    await preview.processGCodeStream(gcodeStream);
 }
-
-function loadChuncked(preview,lines,delay) {
-    let c = 0;
-    
-    preview.clear();
-    if (__animationTimer__)
-        window.clearTimeout(__animationTimer__);
-
-    const loadProgressive = () => {
-        const _chunkSize = chunkSize ?? Infinity;
-        const start = c * _chunkSize;
-        const end = (c + 1) * _chunkSize;
-        const chunk = lines.slice(start, end);
-
-        preview.processGCode(chunk);
-        c++;
-        if (c * _chunkSize < lines.length) {
-            __animationTimer__ = setTimeout(loadProgressive, delay);
-        }
-    };
-
-    // cancel loading process if one is still in progress
-    // mostly when hot reloading
-    window.clearTimeout(__animationTimer__);
-    loadProgressive();
-};
 
 </script>
 
