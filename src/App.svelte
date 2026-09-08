@@ -3,7 +3,6 @@
   import GCodePreview from './lib/GCodePreview.svelte';
   
   let gcodeSrc = '/benchy.gcode';
-  let gcodeChunkSize = 500;
 </script>
 
 <main>
@@ -19,16 +18,10 @@
   <h1>GCodePreview with Vite + Svelte</h1>
 
   <div>
-    <GCodePreview src={gcodeSrc} chunkSize={gcodeChunkSize} />
+    <GCodePreview src={gcodeSrc} />
   </div>
-  <button on:click={() => { 
-    gcodeSrc='/ripple_vase.gcode';
-    gcodeChunkSize=null
-  } }>ripple_vase.gcode</button>
-  <button on:click={() => { 
-    gcodeSrc='/benchy.gcode';
-    gcodeChunkSize=500
-  } }>benchy.gcode<br>chunk size = 500</button>
+  <button on:click={() => gcodeSrc = '/ripple_vase.gcode'}>ripple_vase.gcode</button>
+  <button on:click={() => gcodeSrc = '/benchy.gcode'}>benchy.gcode</button>
 </main>
 
 <style>
