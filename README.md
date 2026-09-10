@@ -26,17 +26,14 @@ reads, so the preview is built once and disposed on unmount. A second `$effect`
 tracks `src` and feeds the response body to `processGCodeStream`, so the library
 parses and draws incrementally while the file is still downloading.
 
+`processGCodeStream` resolves once the closing render animation has played out,
+which the component awaits to clear the loading state. That animation is driven
+by `requestAnimationFrame`, so it only advances while the page is visible.
+
 Changing `src` clears the previous job and starts a fresh stream. A load that is
 superseded while its fetch is still in flight bails out instead of drawing over
 the newer one. Unmounting removes the resize listener and calls
 `preview.dispose()`. Loading and failure states render below the canvas.
-
-### Note on completion
-
-In `3.0.0-alpha.6` the promise returned by `processGCode` and
-`processGCodeStream` never settles, even though parsing and rendering finish
-normally. The component therefore takes its completion signal from the
-`onStreamEnd` callback rather than from awaiting the promise.
 
 ## Samples
 

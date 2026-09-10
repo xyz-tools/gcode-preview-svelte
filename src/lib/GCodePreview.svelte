@@ -50,12 +50,6 @@
     loading = true;
     error = '';
 
-    // processGCode/processGCodeStream return a promise that never settles in
-    // 3.0.0-alpha.6, so completion has to come off this callback instead.
-    preview.onStreamEnd = () => {
-      if (id === loadId) loading = false;
-    };
-
     try {
       const response = await fetch(src);
 
@@ -70,14 +64,12 @@
       // bytes that response.body yields
       const gcodeStream = response.body.pipeThrough(new TextDecoderStream());
 
-      // the library parses and draws incrementally as the stream arrives.
-      // deliberately not awaited, see the note above; report failures instead.
-      preview.processGCodeStream(gcodeStream).catch(fail);
-    } catch (cause) {
-      fail(cause);
-    }
+      // the library parses and draws incrementally as the stream arrives, and
+      // resolves once the closing render animation has played out
+      await preview.processGCodeStream(gcodeStream);
 
-    function fail(cause) {
+      if (id === loadId) loading = false;
+    } catch (cause) {
       if (id !== loadId) return;
       loading = false;
       error = cause instanceof Error ? cause.message : String(cause);
