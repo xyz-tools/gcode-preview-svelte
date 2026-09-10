@@ -1,23 +1,20 @@
 <script>
   import { GCodePreview } from 'gcode-preview';
-  import { onDestroy, onMount } from 'svelte';
 
-  export let src;
+  let { src } = $props();
 
   let canvas;
   let preview;
   // identifies the most recent load, so a fetch that resolves late can bail out
   let loadId = 0;
-  let loading = false;
-  let error = '';
-
-  $: {
-    load(src);
-  }
+  let loading = $state(false);
+  let error = $state('');
 
   const resize = () => preview?.sceneManager.resize();
 
-  onMount(() => {
+  // no reactive reads, so this sets the preview up once and tears it down on
+  // unmount. it is declared first, so the loading effect below can rely on it.
+  $effect(() => {
     window['preview'] = preview = new GCodePreview({
       canvas,
       droppable: true,
@@ -28,15 +25,18 @@
     });
 
     window.addEventListener('resize', resize);
-    load(src);
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      // any load still in flight sees the bumped id and leaves preview alone
+      loadId++;
+      preview?.dispose();
+      preview = undefined;
+    };
   });
 
-  onDestroy(() => {
-    window.removeEventListener('resize', resize);
-    // any load still in flight sees the bumped id and stops touching preview
-    loadId++;
-    preview?.dispose();
-    preview = undefined;
+  $effect(() => {
+    load(src);
   });
 
   async function load(src) {

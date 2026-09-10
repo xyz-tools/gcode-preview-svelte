@@ -1,7 +1,7 @@
 # GCode Preview 3.0 with Svelte + Vite
 
 This demo uses [GCode Preview](https://github.com/xyz-tools/gcode-preview)
-`3.0.0-alpha.6` with a Svelte + Vite setup.
+`3.0.0-alpha.6` with Svelte 5 and Vite 8. Needs Node 20.19+ or 22.12+.
 
 ```sh
 npm install
@@ -21,9 +21,10 @@ Open the local URL printed by Vite. `npm run build` writes a production build to
 <GCodePreview src={`${import.meta.env.BASE_URL}square-tower.gcode`} />
 ```
 
-The wrapper constructs `new GCodePreview(...)` once the canvas has mounted and
-feeds it the response body through `processGCodeStream`, so the library parses
-and draws incrementally while the file is still downloading.
+The wrapper constructs `new GCodePreview(...)` in an `$effect` with no reactive
+reads, so the preview is built once and disposed on unmount. A second `$effect`
+tracks `src` and feeds the response body to `processGCodeStream`, so the library
+parses and draws incrementally while the file is still downloading.
 
 Changing `src` clears the previous job and starts a fresh stream. A load that is
 superseded while its fetch is still in flight bails out instead of drawing over

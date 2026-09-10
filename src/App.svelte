@@ -2,7 +2,7 @@
   import svelteLogo from './assets/svelte.svg'
   import GCodePreview from './lib/GCodePreview.svelte';
   
-  let gcodeSrc = `${import.meta.env.BASE_URL}square-tower.gcode`;
+  let gcodeSrc = $state(`${import.meta.env.BASE_URL}square-tower.gcode`);
 </script>
 
 <main>
@@ -20,8 +20,8 @@
   <div>
     <GCodePreview src={gcodeSrc} />
   </div>
-  <button on:click={() => gcodeSrc = `${import.meta.env.BASE_URL}square-tower.gcode`}>square-tower.gcode</button>
-  <button on:click={() => gcodeSrc = `${import.meta.env.BASE_URL}triangle-tower.gcode`}>triangle-tower.gcode</button>
+  <button onclick={() => gcodeSrc = `${import.meta.env.BASE_URL}square-tower.gcode`}>square-tower.gcode</button>
+  <button onclick={() => gcodeSrc = `${import.meta.env.BASE_URL}triangle-tower.gcode`}>triangle-tower.gcode</button>
 </main>
 
 <style>
