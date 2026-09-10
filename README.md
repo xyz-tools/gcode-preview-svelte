@@ -1,20 +1,44 @@
-# GCodePreview with Svelte + Vite
+# GCode Preview 3.0 with Svelte + Vite
 
-Running the example
+This demo uses [GCode Preview](https://github.com/xyz-tools/gcode-preview)
+`3.0.0-alpha.6` with a Svelte + Vite setup.
 
-```
-cd svelte-demo
+```sh
 npm install
 npm run dev
 ```
 
-## Svelte component
+Open the local URL printed by Vite. `npm run build` writes a production build to
+`dist/`; `npm run preview` serves that build locally.
 
-Using the example Svelte component is a simple as:
-```
+## Component
+
+```svelte
 <script>
   import GCodePreview from './lib/GCodePreview.svelte';
 </script>
 
-<GCodePreview src={'benchy.gcode'} />
+<GCodePreview src={`${import.meta.env.BASE_URL}square-tower.gcode`} />
 ```
+
+The wrapper constructs `new GCodePreview(...)` once the canvas has mounted and
+feeds it the response body through `processGCodeStream`, so the library parses
+and draws incrementally while the file is still downloading.
+
+Changing `src` clears the previous job and starts a fresh stream. A load that is
+superseded while its fetch is still in flight bails out instead of drawing over
+the newer one. Unmounting removes the resize listener and calls
+`preview.dispose()`. Loading and failure states render below the canvas.
+
+### Note on completion
+
+In `3.0.0-alpha.6` the promise returned by `processGCode` and
+`processGCodeStream` never settles, even though parsing and rendering finish
+normally. The component therefore takes its completion signal from the
+`onStreamEnd` callback rather than from awaiting the promise.
+
+## Samples
+
+`public/square-tower.gcode` and `public/triangle-tower.gcode` are small
+synthetic samples — 40 mm cubes centred at (100, 100) — not printer-ready
+G-code. Drop your own files in `public/` and point `src` at them.

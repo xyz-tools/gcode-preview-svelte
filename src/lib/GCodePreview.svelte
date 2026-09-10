@@ -1,34 +1,45 @@
-<script lang="ts">
-import { GCodePreview } from 'gcode-preview';
-import { onDestroy, onMount } from 'svelte';
+<script>
+  import { GCodePreview } from 'gcode-preview';
+  import { onDestroy, onMount } from 'svelte';
 
-export let src;
+  export let src;
 
-let canvas;
-let preview;
-// identifies the most recent load, so a fetch that resolves late can bail out
-let loadId = 0;
+  let canvas;
+  let preview;
+  // identifies the most recent load, so a fetch that resolves late can bail out
+  let loadId = 0;
+  let loading = false;
+  let error = '';
 
-$: {
+  $: {
     load(src);
-}
+  }
 
-onMount(() => {
+  const resize = () => preview?.sceneManager.resize();
+
+  onMount(() => {
     window['preview'] = preview = new GCodePreview({
-        canvas,
-        droppable: true,
-        extrusionColor: 'lime'
+      canvas,
+      droppable: true,
+      extrusionColor: 'lime',
+      // the samples are 40mm cubes centred at (100, 100)
+      buildVolume: { x: 200, y: 200, z: 100 },
+      initialCameraPosition: [0, 150, 200]
     });
 
+    window.addEventListener('resize', resize);
     load(src);
-});
+  });
 
-onDestroy(() => {
+  onDestroy(() => {
+    window.removeEventListener('resize', resize);
+    // any load still in flight sees the bumped id and stops touching preview
+    loadId++;
     preview?.dispose();
     preview = undefined;
-});
+  });
 
-async function load(src) {
+  async function load(src) {
     if (!preview) return;
 
     const id = ++loadId;
@@ -36,35 +47,53 @@ async function load(src) {
     // state persists across loads, so drop the previous job before streaming a
     // new one in. clear() also cancels a stream that is still being read.
     preview.clear();
+    loading = true;
+    error = '';
 
-    const response = await fetch(src);
+    // processGCode/processGCodeStream return a promise that never settles in
+    // 3.0.0-alpha.6, so completion has to come off this callback instead.
+    preview.onStreamEnd = () => {
+      if (id === loadId) loading = false;
+    };
 
-    if (response.status !== 200) {
-        throw new Error(`status code: ${response.status}`);
+    try {
+      const response = await fetch(src);
+
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}: ${src}`);
+      }
+
+      // a newer load started while we were fetching; that one owns the preview
+      if (id !== loadId) return;
+
+      // the reader splits chunks on newlines, so it needs text and not the raw
+      // bytes that response.body yields
+      const gcodeStream = response.body.pipeThrough(new TextDecoderStream());
+
+      // the library parses and draws incrementally as the stream arrives.
+      // deliberately not awaited, see the note above; report failures instead.
+      preview.processGCodeStream(gcodeStream).catch(fail);
+    } catch (cause) {
+      fail(cause);
     }
 
-    // a newer load started while we were fetching; that one owns the preview
-    if (id !== loadId) return;
-
-    // the reader splits chunks on newlines, so it needs text and not the raw
-    // bytes that response.body yields
-    const gcodeStream = response.body.pipeThrough(new TextDecoderStream());
-
-    // the library parses and draws incrementally as the stream arrives
-    await preview.processGCodeStream(gcodeStream);
-}
-
+    function fail(cause) {
+      if (id !== loadId) return;
+      loading = false;
+      error = cause instanceof Error ? cause.message : String(cause);
+    }
+  }
 </script>
 
-<canvas
-    bind:this={canvas}
-    width={300}
-    height={200}>
-</canvas>
-
+<canvas bind:this={canvas} width={600} height={400} aria-label="G-code preview"></canvas>
+{#if loading}<p role="status">Loading G-code…</p>{/if}
+{#if error}<p role="alert">{error}</p>{/if}
 
 <style>
-    canvas {
-        cursor: grab;
-    }
+  canvas {
+    cursor: grab;
+    width: 100%;
+    max-width: 600px;
+    height: 400px;
+  }
 </style>
