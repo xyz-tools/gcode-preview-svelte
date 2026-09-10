@@ -78,8 +78,12 @@
 </script>
 
 <canvas bind:this={canvas} width={600} height={400} aria-label="G-code preview"></canvas>
-{#if loading}<p role="status">Loading G-code…</p>{/if}
-{#if error}<p role="alert">{error}</p>{/if}
+<!-- the status line keeps its space whether or not it has text, so showing a
+     message does not reflow the page below the preview -->
+<div class="status">
+  <p role="status">{loading ? 'Loading G-code…' : ''}</p>
+  <p role="alert">{error}</p>
+</div>
 
 <style>
   canvas {
@@ -87,5 +91,15 @@
     width: 100%;
     max-width: 600px;
     height: 400px;
+  }
+
+  /* loading and error are mutually exclusive, so one line is enough */
+  .status {
+    min-height: 1.5em;
+    min-height: 1lh;
+  }
+
+  .status p {
+    margin: 0;
   }
 </style>
