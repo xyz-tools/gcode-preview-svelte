@@ -1,105 +1,130 @@
-<script>
-  import { GCodePreview } from 'gcode-preview';
+<script lang="ts">
+  // aliased: the generated declaration names the component GCodePreview too
+  import { GCodePreview as Core, type GCodePreviewOptions } from 'gcode-preview';
+  import { onMount, untrack } from 'svelte';
+  import {
+    LIVE_OPTIONS,
+    OPTION_KEYS,
+    UNDEFINED_ALLOWED,
+    type GCodePreviewProps
+  } from './options.js';
 
-  let { src } = $props();
+  let {
+    src,
+    gcode,
+    preview = $bindable(),
+    onready,
+    onload,
+    onerror,
+    ...rest
+  }: GCodePreviewProps = $props();
 
-  let canvas;
-  let preview;
-  // identifies the most recent load, so a fetch that resolves late can bail out
+  // rest holds both the core options and the canvas attributes; only the
+  // latter belong on the element
+  const option = (key: string) => (rest as Record<string, unknown>)[key];
+  const attributes = $derived(
+    Object.fromEntries(Object.entries(rest).filter(([key]) => !OPTION_KEYS.includes(key)))
+  );
+
+  let canvas: HTMLCanvasElement;
+  // plain variables: the preview and its three.js objects must not be made
+  // deeply reactive
+  let instance: Core | undefined;
+  let controller: AbortController | undefined;
+  // identifies the current load, so a superseded or unmounted one bails out
   let loadId = 0;
-  let loading = $state(false);
-  let error = $state('');
+  let hasJob = false;
+  // the live option values the preview was last given
+  const applied: Record<string, unknown> = {};
 
-  const resize = () => preview?.sceneManager.resize();
+  onMount(() => {
+    const initial: Record<string, unknown> = {};
+    for (const key of OPTION_KEYS) {
+      if (option(key) !== undefined) initial[key] = option(key);
+    }
+    for (const key of LIVE_OPTIONS) applied[key] = option(key);
 
-  // no reactive reads, so this sets the preview up once and tears it down on
-  // unmount. it is declared first, so the loading effect below can rely on it.
-  $effect(() => {
-    window['preview'] = preview = new GCodePreview({
-      canvas,
-      droppable: true,
-      extrusionColor: 'lime',
-      // the samples are 40mm cubes centred at (100, 100)
-      buildVolume: { x: 200, y: 200, z: 100 },
-      initialCameraPosition: [0, 150, 200]
-    });
+    const created = (instance = new Core({ ...(initial as GCodePreviewOptions), canvas }));
+    preview = created;
 
-    window.addEventListener('resize', resize);
+    const observer = new ResizeObserver(() => created.sceneManager.resize());
+    observer.observe(canvas);
+
+    onready?.(created);
 
     return () => {
-      window.removeEventListener('resize', resize);
-      // any load still in flight sees the bumped id and leaves preview alone
       loadId++;
-      preview?.dispose();
+      controller?.abort();
+      observer.disconnect();
+      created.dispose();
+      instance = undefined;
       preview = undefined;
     };
   });
 
   $effect(() => {
-    load(src);
+    const values = LIVE_OPTIONS.map((key) => [key, option(key)] as const);
+    if (!instance) return;
+    for (const [key, value] of values) {
+      // some setters rebuild geometry, so only touch what changed
+      if (Object.is(value, applied[key])) continue;
+      if (value === undefined && !UNDEFINED_ALLOWED.has(key)) continue;
+      applied[key] = value;
+      const target = key === 'devMode' ? instance : instance.sceneManager;
+      (target as unknown as Record<string, unknown>)[key] = value;
+    }
   });
 
-  async function load(src) {
-    if (!preview) return;
+  $effect(() => {
+    const nextGcode = gcode;
+    const nextSrc = src;
+    untrack(() => load(nextGcode, nextSrc));
+  });
 
+  async function load(nextGcode: typeof gcode, nextSrc: typeof src) {
+    if (!instance) return;
+    const current = instance;
     const id = ++loadId;
+    controller?.abort();
+    controller = undefined;
 
-    // state persists across loads, so drop the previous job before streaming a
-    // new one in. clear() also cancels a stream that is still being read.
-    preview.clear();
-    loading = true;
-    error = '';
+    if (nextGcode == null && nextSrc == null) {
+      if (hasJob) current.clear();
+      hasJob = false;
+      return;
+    }
+
+    // clear() drops the previous job and cancels a stream still being read
+    current.clear();
+    hasJob = true;
 
     try {
-      const response = await fetch(src);
-
-      if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}: ${src}`);
+      if (nextGcode != null) {
+        await current.processGCode(nextGcode);
+      } else {
+        const abort = (controller = new AbortController());
+        const response = await fetch(nextSrc!, { signal: abort.signal });
+        if (id !== loadId) return;
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${nextSrc}`);
+        if (!response.body) throw new Error(`Empty response body: ${nextSrc}`);
+        // the reader splits chunks on newlines, so it needs text, not bytes
+        await current.processGCodeStream(response.body.pipeThrough(new TextDecoderStream()));
       }
-
-      // a newer load started while we were fetching; that one owns the preview
       if (id !== loadId) return;
 
-      // the reader splits chunks on newlines, so it needs text and not the raw
-      // bytes that response.body yields
-      const gcodeStream = response.body.pipeThrough(new TextDecoderStream());
-
-      // the library parses and draws incrementally as the stream arrives, and
-      // resolves once the closing render animation has played out
-      await preview.processGCodeStream(gcodeStream);
-
-      if (id === loadId) loading = false;
+      // the layer setters clamp against the loaded job, so set them again now
+      // that it is complete
+      const { startLayer, endLayer } = rest;
+      current.sceneManager.startLayer = applied.startLayer = startLayer;
+      current.sceneManager.endLayer = applied.endLayer = endLayer;
+      onload?.(current);
     } catch (cause) {
       if (id !== loadId) return;
-      loading = false;
-      error = cause instanceof Error ? cause.message : String(cause);
+      const error = cause instanceof Error ? cause : new Error(String(cause));
+      if (onerror) onerror(error);
+      else console.error(error);
     }
   }
 </script>
 
-<canvas bind:this={canvas} width={600} height={400} aria-label="G-code preview"></canvas>
-<!-- the status line keeps its space whether or not it has text, so showing a
-     message does not reflow the page below the preview -->
-<div class="status">
-  <p role="status">{loading ? 'Loading G-code…' : ''}</p>
-  <p role="alert">{error}</p>
-</div>
-
-<style>
-  canvas {
-    cursor: grab;
-    width: 100%;
-    max-width: 600px;
-    height: 400px;
-  }
-
-  /* loading and error are mutually exclusive, so one line is enough */
-  .status {
-    min-height: 1.5em;
-    min-height: 1lh;
-  }
-
-  .status p {
-    margin: 0;
-  }
-</style>
+<canvas bind:this={canvas} aria-label="G-code preview" {...attributes}></canvas>

@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "moduleResolution": "Node",
     "target": "ESNext",
     "module": "ESNext",
+    "moduleResolution": "Bundler",
     /**
      * vitePreprocess cannot figure out whether you have a value
      * or a type, so tell TypeScript to enforce using
@@ -16,19 +16,11 @@
      * correct position, enable source maps by default.
      */
     "sourceMap": true,
-    "esModuleInterop": true,
+    "strict": true,
+    "noEmit": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
-    /**
-     * Typecheck JS in `.svelte` and `.js` files by default.
-     * Disable this if you'd like to use dynamic types.
-     */
     "checkJs": true
   },
-  /**
-   * Use global.d.ts instead of compilerOptions.types
-   * to avoid limiting type declarations.
-   */
-  "include": ["src/**/*.d.ts", "src/**/*.js", "src/**/*.svelte"]
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "test/**/*.ts", "*.config.js"]
 }

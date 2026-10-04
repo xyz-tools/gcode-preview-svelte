@@ -1,39 +1,67 @@
-<script>
-  import svelteLogo from './assets/svelte.svg'
-  import GCodePreview from './lib/GCodePreview.svelte';
-  
-  let gcodeSrc = $state(`${import.meta.env.BASE_URL}square-tower.gcode`);
+<script lang="ts">
+  import GCodePreview from './lib';
+
+  const samples = ['square-tower.gcode', 'triangle-tower.gcode'];
+  // the samples are 40mm cubes centred at (100, 100)
+  const buildVolume = { x: 200, y: 200, z: 100, smallGrid: undefined };
+  const initialCameraPosition = [0, 150, 200];
+
+  let sample = $state(samples[0]);
+  let loading = $state(true);
+  let error = $state('');
+
+  function select(name: string) {
+    if (name === sample) return;
+    sample = name;
+    loading = true;
+    error = '';
+  }
 </script>
 
 <main>
-  <div>
-    <a href="https://vitejs.dev" target="_blank"> 
-      <img src={`${import.meta.env.BASE_URL}vite.svg`} class="logo" alt="Vite Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank"> 
-      <img src={svelteLogo} class="logo svelte" alt="Svelte Logo" />
-    </a>
-  </div>
-
   <h1>GCode Preview 3.0 with Vite + Svelte</h1>
 
-  <div>
-    <GCodePreview src={gcodeSrc} />
+  <GCodePreview
+    class="preview"
+    src={`${import.meta.env.BASE_URL}${sample}`}
+    droppable
+    extrusionColor="lime"
+    {buildVolume}
+    {initialCameraPosition}
+    onload={() => (loading = false)}
+    onerror={(cause) => {
+      loading = false;
+      error = cause.message;
+    }}
+  />
+  <!-- the status line keeps its space whether or not it has text, so showing a
+       message does not reflow the page below the preview -->
+  <div class="status">
+    <p role="status">{loading ? 'Loading G-code…' : ''}</p>
+    <p role="alert">{error}</p>
   </div>
-  <button onclick={() => gcodeSrc = `${import.meta.env.BASE_URL}square-tower.gcode`}>square-tower.gcode</button>
-  <button onclick={() => gcodeSrc = `${import.meta.env.BASE_URL}triangle-tower.gcode`}>triangle-tower.gcode</button>
+
+  {#each samples as name (name)}
+    <button onclick={() => select(name)}>{name}</button>
+  {/each}
 </main>
 
 <style>
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
+  /* the component renders a bare canvas, sized here */
+  main :global(.preview) {
+    cursor: grab;
+    width: 100%;
+    max-width: 600px;
+    height: 400px;
   }
-  .logo:hover {
-    filter: drop-shadow(0 0 2em #646cffaa);
+
+  /* loading and error are mutually exclusive, so one line is enough */
+  .status {
+    min-height: 1.5em;
+    min-height: 1lh;
   }
-  .logo.svelte:hover {
-    filter: drop-shadow(0 0 2em #ff3e00aa);
+
+  .status p {
+    margin: 0;
   }
 </style>
