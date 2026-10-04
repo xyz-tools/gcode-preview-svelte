@@ -45,7 +45,8 @@ The component is also exported by name (`import { GCodePreview } from
 | `gcode` | `string \| string[]` | G-code to process directly. If both are set, `gcode` wins. |
 
 Changing `src` or `gcode` clears the preview and starts a new load; a load
-that is still running is aborted. Unsetting both clears the preview.
+that is still running is aborted. Unsetting both clears the preview. A new
+`gcode` array starts a new load even if its lines are the same.
 
 ### Preview options
 
