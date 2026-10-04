@@ -2,7 +2,6 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [svelte()],
   // dist/ holds the library build, so the demo builds elsewhere

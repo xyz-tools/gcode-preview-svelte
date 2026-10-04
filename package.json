@@ -39,7 +39,7 @@
   "scripts": {
     "dev": "vite",
     "build": "svelte-package -i src/lib -o dist",
-    "build:demo": "vite build",
+    "build:demo": "npm run check && vite build",
     "preview": "vite preview",
     "prepack": "npm run build",
     "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",

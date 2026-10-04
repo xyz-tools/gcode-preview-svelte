@@ -19,7 +19,8 @@
 </script>
 
 <main>
-  <h1>GCode Preview 3.0 with Vite + Svelte</h1>
+  <h1>GCode Preview Svelte demo</h1>
+  <p>Drop a <code>.gcode</code> file onto the canvas to preview your own print.</p>
 
   <GCodePreview
     class="preview"
