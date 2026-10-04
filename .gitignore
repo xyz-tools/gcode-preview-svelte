@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 build
+# svelte-package writes its intermediate output here
+.svelte-kit
 *.local
 
 # Editor directories and files
