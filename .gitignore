@@ -24,3 +24,10 @@ build
 *.njsproj
 *.sln
 *.sw?
+
+# added by meta .gitignore audit
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
